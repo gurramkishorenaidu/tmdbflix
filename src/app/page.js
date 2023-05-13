@@ -1,13 +1,12 @@
 'use client';
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 
 function MovieList() {
   const [movieList, setMovieList] = useState([]);
   const [error, setError] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [page, setPage] = useState(1);
+  const movieListRef = useRef();
 
   async function fetchData(page) {
     try {
@@ -15,95 +14,41 @@ function MovieList() {
         `https://api.themoviedb.org/3/discover/movie?sort_by=popularity.desc&api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&page=${page}`
       );
       const data = await response.json();
-      setMovieList(data.results);
-      setTotalPages(data.total_pages);
+      return data.results;
     } catch (error) {
       setError('Failed to fetch movies');
+      return [];
     }
   }
 
   useEffect(() => {
-    fetchData(currentPage);
-  }, [currentPage]);
-
-  console.log(movieList);
-
-  function handlePrevClick() {
-    setCurrentPage((prevPage) => prevPage - 1);
-  }
-
-  function handleNextClick() {
-    setCurrentPage((prevPage) => prevPage + 1);
-  }
-
-  function renderPageNumbers() {
-    const pageNumbers = [];
-
-    // Add left arrow button if currentPage is greater than 1
-    if (currentPage > 1) {
-      pageNumbers.push(
-        <button
-          key={`page-left`}
-          className="px-4 py-2 mr-2 text-gray-600 bg-gray-200 rounded-md font-sm hover:text-white focus:outline-none"
-          onClick={handlePrevClick}
-        >
-          {'<'}
-        </button>
-      );
+    async function loadMoreMovies() {
+      const newMovies = await fetchData(page);
+      setMovieList((prevMovies) => [...prevMovies, ...newMovies]);
     }
 
-    // Add page number buttons with ellipsis
-    for (let i = 1; i <= totalPages; i++) {
+    const movieListElement = movieListRef.current;
+
+    function handleScroll() {
       if (
-        i === 1 ||
-        i === totalPages ||
-        (i >= currentPage - 2 && i <= currentPage + 2)
+        movieListElement.scrollTop + movieListElement.offsetHeight >=
+        movieListElement.scrollHeight
       ) {
-        pageNumbers.push(
-          <button
-            key={`page-${i}`}
-            className={`px-4 py-2 font-sm text-gray-600 hover:text-white bg-gray-200 rounded-md mr-2 focus:outline-none ${
-              i === currentPage ? 'text-gray-200 bg-amber-500' : ''
-            }`}
-            onClick={() => handlePageClick(i)}
-          >
-            {i}
-          </button>
-        );
-      } else if (
-        (i === currentPage - 3 && currentPage > 4) ||
-        (i === currentPage + 3 && currentPage < totalPages - 3)
-      ) {
-        pageNumbers.push(
-          <span key={`page-${i}`} className="mx-2">
-            {'...'}
-          </span>
-        );
+        setPage((prevPage) => prevPage + 1);
       }
     }
 
-    // Add right arrow button if currentPage is less than totalPages
-    if (currentPage < totalPages) {
-      pageNumbers.push(
-        <button
-          key={`page-right`}
-          className="px-4 py-2 mr-2 text-gray-600 bg-gray-200 rounded-md font-sm hover:text-white focus:outline-none"
-          onClick={handleNextClick}
-        >
-          {'>'}
-        </button>
-      );
-    }
+    loadMoreMovies();
 
-    return (
-      <div className="flex flex-wrap justify-center gap-2 mt-6">
-        {pageNumbers}
-      </div>
-    );
-  }
+    window.addEventListener('scroll', handleScroll);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [page]);
 
   return (
-    <div className="grid grid-cols-5 gap-6 mx-6">
+    <div className="grid grid-cols-5 gap-6 mx-6" ref={movieListRef}>
       {error && <h3>{error}</h3>}
 
       {movieList &&
@@ -147,9 +92,6 @@ function MovieList() {
             </div>
           </div>
         ))}
-      <div className="flex justify-center col-span-5 mt-6 mb-12">
-        {totalPages > 1 && renderPageNumbers()}
-      </div>
     </div>
   );
 }
